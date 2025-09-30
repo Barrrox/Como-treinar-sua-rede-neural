@@ -9,14 +9,14 @@ Autores: Ellen Brzozoski, João Silva, Lóra, Matheus Barros
 
 import numpy as np
 from time import time
-from tensorflow.keras.models import Model # type : ignore
-from tensorflow.keras.layers import (
+from tensorflow.keras.models import Model # type: ignore
+from tensorflow.keras.layers import ( # type: ignore
     Dense, Conv2D, MaxPooling2D, Input,
     Concatenate, Dropout, BatchNormalization,
     GlobalAveragePooling2D, Activation
-) # type : ignore
-from tensorflow.keras.callbacks import EarlyStopping # type : ignore
-from tensorflow.keras.utils import to_categorical # type : ignore
+) 
+from tensorflow.keras.callbacks import EarlyStopping # type: ignore
+from tensorflow.keras.utils import to_categorical # type: ignore
 from scikeras.wrappers import KerasClassifier
 from sklearn.model_selection import RandomizedSearchCV, train_test_split
 import os
@@ -152,7 +152,7 @@ def otimizar_parametros():
         # Ele calcula a média, desvio padrão e normaliza os dados.
         x = BatchNormalization()(x)
         x = Activation('relu')(x)
-        
+
         # MaxPooling2D reduz a dimensionalidade da imagem ao
         # analisar porçoes 2x2 da imagem e capturar o pixel com
         # maior valor (Max) formando um novo tensor com metade

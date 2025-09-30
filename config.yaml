@@ -24,8 +24,8 @@ dados:
   num_canais: 3
 
 modelo:
-  caminho_melhor_modelo: "modelo_10_RGB.keras"
-  caminho_ultimo_modelo: "modelo_final_10_RGB.keras"
+  caminho_melhor_modelo: "Modelos/modelo_10_RGB.keras"
+  caminho_ultimo_modelo: "Modelos/modelo_final_10_RGB.keras"
 
 treinamento:
   tam_testes: 0.3
