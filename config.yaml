@@ -1,0 +1,41 @@
+# Arquivo: config.yaml
+
+geral:
+  random_seed: 42
+  num_classes: 9
+  classes_map:
+    0: 'Baroque'
+    1: 'Cubism'
+    2: 'Expressionism'
+    3: 'Impressionism'
+    4: 'Minimalism'
+    5: 'Post_Impressionism'
+    6: 'Realism'
+    7: 'Romanticism'
+    8: 'Symbolism'
+
+dados:
+  # Os nomes aqui estão sem "/"
+  nome_pasta_dados: "Dados"
+  caminho_base_de_dados: "Dados/BaseDeDados10" # Pasta com as imagens originais
+  arquivo_imagens_treino: "Dados/imagens_treino_10_RGB.npy"
+  arquivo_labels_treino: "Dados/labels_treino_10_RGB.npy"
+  tamanho_imagem: 224
+  num_canais: 3
+
+modelo:
+  caminho_melhor_modelo: "modelo_10_RGB.keras"
+  caminho_ultimo_modelo: "modelo_final_10_RGB.keras"
+
+treinamento:
+  tam_testes: 0.3
+  tam_validacao: 0.3
+  epocas: 10
+  batch_size: 2
+  callbacks:
+    early_stopping_patience: 3
+
+otimizacao:
+  fracao_busca: 1
+  n_iter: 2
+  cv_folds: 2

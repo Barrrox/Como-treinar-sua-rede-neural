@@ -17,26 +17,44 @@ from tensorflow.keras.preprocessing.image import ImageDataGenerator # type: igno
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint # type: ignore
 from sklearn.model_selection import train_test_split
 from time import time
+import os
+
+# Carrega as configs/parametros 
+from utilidade import carregar_config
+config = carregar_config()
 
 
-def treinar_modelo(TAM_TESTES, TAM_VALIDACAO, QNT_EPOCAS):
+def treinar_modelo():
     inicio = time()
 
     # --- 1. Carregamento dos Dados ---
-    imagens = np.load("imagens_treino.npy")
-    labels = np.load("labels_treino.npy")
+    # Caminhos de dados lidos do config.yaml
+    caminho_imagens = config['dados']['arquivo_imagens_treino']
+    caminho_labels = config['dados']['arquivo_labels_treino']
+    
+    imagens = np.load(caminho_imagens)
+    labels = np.load(caminho_labels)
     print(f"Tempo = {time() - inicio:.2f}s : Datasets carregados.")
 
     # Divisão em treino, validação e teste
     # Passo 1: Separar o conjunto de teste
     x_train_temp, x_test, y_train_temp, y_test = train_test_split(
-        imagens, labels, test_size=TAM_TESTES, random_state=42, stratify=labels
+        imagens, labels, 
+        test_size=config['treinamento']['tam_testes'], 
+        random_state=config['geral']['random_seed'], 
+        stratify=labels
     )
+
+    TAM_VALIDACAO = config['treinamento']['tam_validacao']
+    TAM_TESTES = config['treinamento']['tam_testes']
 
     # Passo 2: Separar o restante em treino
     val_size_recalculado = TAM_VALIDACAO / (1.0 - TAM_TESTES)
     x_train, x_val, y_train, y_val = train_test_split(
-        x_train_temp, y_train_temp, test_size=val_size_recalculado, random_state=42, stratify=y_train_temp
+        x_train_temp, y_train_temp, 
+        test_size=val_size_recalculado, 
+        random_state=config['geral']['random_seed'], 
+        stratify=y_train_temp
     )
 
     # Normalização
@@ -46,9 +64,10 @@ def treinar_modelo(TAM_TESTES, TAM_VALIDACAO, QNT_EPOCAS):
     print(f"Tempo = {time() - inicio:.2f}s : Normalização concluída.")
 
     # One-hot encoding
-    y_train = to_categorical(y_train, 9)
-    y_val = to_categorical(y_val, 9)
-    y_test = to_categorical(y_test, 9)
+    num_classes = config['geral']['num_classes']
+    y_train = to_categorical(y_train, num_classes)
+    y_val = to_categorical(y_val, num_classes)
+    y_test = to_categorical(y_test, num_classes)
 
     # --- 2. Data Augmentation ---
     # Modifica as imagens para 
@@ -66,7 +85,6 @@ def treinar_modelo(TAM_TESTES, TAM_VALIDACAO, QNT_EPOCAS):
 
     # Módulo Inception 
     def inception_module(x, f1, f2_in, f2_out, f3_in, f3_out, f4_out):
-
         # Ramo 1
         conv1 = Conv2D(f1, (1,1), padding='same', use_bias=False)(x)
         conv1 = BatchNormalization()(conv1)
@@ -97,7 +115,12 @@ def treinar_modelo(TAM_TESTES, TAM_VALIDACAO, QNT_EPOCAS):
         out = Concatenate(axis=-1)([conv1, conv3, conv5, pool_proj])
         return out
  
-    input_layer = Input(shape=(128, 128, 3))
+    input_shape = (
+        config['dados']['tamanho_imagem'], 
+        config['dados']['tamanho_imagem'], 
+        config['dados']['num_canais']
+    )
+    input_layer = Input(shape=input_shape)
 
     # Convolução: Analisa a imagem com 32 neuronios (filtros)
     # de tamanho 3x3 para fazer uma captura inicial das imagens, 
@@ -144,26 +167,36 @@ def treinar_modelo(TAM_TESTES, TAM_VALIDACAO, QNT_EPOCAS):
     output_layer = Dense(9, activation='softmax')(x)
 
     model = Model(inputs=input_layer, outputs=output_layer)
-    model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+    model.compile(
+        optimizer='adam', 
+        loss='categorical_crossentropy', 
+        metrics=['accuracy']
+    )
 
     model.summary()
 
     # --- 4. Callbacks ---
     
-    # EarlyStopping para o treinamento se não houver melhora na taxa
-    # de erro após 15 épocas seguidas
+    # EarlyStopping para o treinamento
     early_stop = EarlyStopping(
-        monitor="val_loss", patience=15, restore_best_weights=True
+        monitor="val_loss", 
+        patience=config['treinamento']['callbacks']['early_stopping_patience'], 
+        restore_best_weights=True
     )
 
-    # Salva o melhor modelo baseando-se no valor da acurácia de validação
+    # Salva o melhor modelo
     checkpoint = ModelCheckpoint(
-        "modelo.keras", monitor="val_accuracy", save_best_only=True
+        config['modelo']['caminho_melhor_modelo'], 
+        monitor="val_accuracy", 
+        save_best_only=True
     )
+
+    QNT_EPOCAS = config['treinamento']['epocas']
+    BATCH_SIZE = config['treinamento']['batch_size']
 
     # --- 5. Treinamento ---
     history = model.fit(
-        datagen.flow(x_train, y_train, batch_size=16),
+        datagen.flow(x_train, y_train, batch_size=BATCH_SIZE),
         validation_data=(x_val, y_val),
         epochs=QNT_EPOCAS,
         callbacks=[early_stop, checkpoint]
@@ -176,17 +209,14 @@ def treinar_modelo(TAM_TESTES, TAM_VALIDACAO, QNT_EPOCAS):
     test_loss, test_accuracy = model.evaluate(x_test, y_test, verbose=2)
     print(f"Acurácia no conjunto de teste: {test_accuracy * 100:.2f}%")
 
-    model.save("modelo_final.keras")
-    print("Modelos salvos: 'best_model.keras' (melhor) e 'final_model.keras' (última época).")
+    model.save(config['modelo']['caminho_melhor_modelo'])
+    print(f"Modelos salvos: '{config['modelo']['caminho_melhor_modelo']}' (melhor) e '{config['modelo']['caminho_ultimo_modelo']}' (última época).")
     return history
 
 
 def main():
-    # Proporção 80% treino, 10% validação, 10% teste
-    TAM_TESTES = 0.10
-    TAM_VALIDACAO = 0.10
-    QNT_EPOCAS = 60
-    treinar_modelo(TAM_TESTES, TAM_VALIDACAO, QNT_EPOCAS)
+    # Todos os parâmetros são lidos do config.yaml
+    treinar_modelo()
 
 
 if __name__ == "__main__":

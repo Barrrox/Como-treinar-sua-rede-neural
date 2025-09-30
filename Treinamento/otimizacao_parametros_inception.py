@@ -9,44 +9,55 @@ Autores: Ellen Brzozoski, João Silva, Lóra, Matheus Barros
 
 import numpy as np
 from time import time
-from tensorflow.keras.models import Model
+from tensorflow.keras.models import Model # type : ignore
 from tensorflow.keras.layers import (
     Dense, Conv2D, MaxPooling2D, Input,
     Concatenate, Dropout, BatchNormalization,
     GlobalAveragePooling2D, Activation
-)
-from tensorflow.keras.callbacks import EarlyStopping
-from tensorflow.keras.utils import to_categorical
+) # type : ignore
+from tensorflow.keras.callbacks import EarlyStopping # type : ignore
+from tensorflow.keras.utils import to_categorical # type : ignore
 from scikeras.wrappers import KerasClassifier
 from sklearn.model_selection import RandomizedSearchCV, train_test_split
+import os
 
-def otimizar_parametros(TAM_TESTE, TAM_VALIDACAO, FRACAO_BUSCA):
+# Carrega as configs/parametros 
+from utilidade import carregar_config
+config = carregar_config()
+
+def otimizar_parametros():
     """
     Carrega os dados, divide-os em treino/validação/teste e executa o
     RandomizedSearchCV para encontrar os melhores hiperparâmetros para o modelo.
-    
-    Args:
-        TAM_TESTE (float): A proporção do conjunto de dados a ser usada para o teste.
-        TAM_VALIDACAO (float): A proporção do conjunto de dados a ser usada para a validação.
-        FRACAO_BUSCA (float): A proporção do conjunto de treino a ser usada na busca (ex: 0.5 para 50%).
     """
     inicio = time()
 
     # Carrega o conjunto de dados de treino completo.
-    imagens = np.load("imagens_treino.npy")
-    labels = np.load("labels_treino.npy")
+    caminho_imagens = config['dados']['arquivo_imagens_treino']
+    caminho_labels = config['dados']['arquivo_labels_treino']
+    imagens = np.load(caminho_imagens)
+    labels = np.load(caminho_labels)
 
     print(f"Tempo = {time() - inicio:.2f}s : Dados de treino carregados")
+    
+    TAM_TESTES = config['treinamento']['tam_testes']
+    TAM_VALIDACAO = config['treinamento']['tam_validacao']
 
     # Separa o conjunto de teste (ex: 15%) do restante (ex: 85%).
     x_train_temp, x_test, y_train_temp, y_test = train_test_split(
-        imagens, labels, test_size=TAM_TESTE, random_state=42, stratify=labels
+        imagens, labels, 
+        test_size=TAM_TESTES, 
+        random_state=config['geral']['random_seed'], 
+        stratify=labels
     )
 
     # Separa o restante em treino e validação.
-    val_size_recalculado = TAM_VALIDACAO / (1.0 - TAM_TESTE)
+    val_size_recalculado = TAM_VALIDACAO / (1.0 - TAM_TESTES)
     x_train, x_val, y_train, y_val = train_test_split(
-        x_train_temp, y_train_temp, test_size=val_size_recalculado, random_state=42, stratify=y_train_temp
+        x_train_temp, y_train_temp, 
+        test_size=val_size_recalculado, 
+        random_state=config['geral']['random_seed'], 
+        stratify=y_train_temp
     )
 
     print(f"Tempo = {time() - inicio:.2f}s : Dados divididos em treino, validação e teste")
@@ -55,13 +66,14 @@ def otimizar_parametros(TAM_TESTE, TAM_VALIDACAO, FRACAO_BUSCA):
     print(f"Conjunto de Teste: {len(x_test)} amostras")
 
     # Se FRACAO_BUSCA for menor que 1.0, reduz o conjunto de treino para a busca
+    FRACAO_BUSCA = config['otimizacao']['fracao_busca']
     if FRACAO_BUSCA < 1.0 and FRACAO_BUSCA > 0.0:
         # Usamos train_test_split para pegar uma amostra estratificada. O restante é descartado para esta busca.
         # y_train ainda não está em one-hot, o que é ideal para o parâmetro stratify.
         _, x_train, _, y_train = train_test_split(
             x_train, y_train,
             test_size=FRACAO_BUSCA,
-            random_state=42,
+            random_state=config['geral']['random_seed'],
             stratify=y_train
         )
         print(f"Tempo = {time() - inicio:.2f}s : Subconjunto de treino criado para a busca.")
@@ -74,7 +86,7 @@ def otimizar_parametros(TAM_TESTE, TAM_VALIDACAO, FRACAO_BUSCA):
     print(f"Tempo = {time() - inicio:.2f}s : Pixels normalizados entre 0 e 1")
 
     # Converte os rótulos do conjunto de treino para o formato one-hot encoding (categórico).
-    y_train = to_categorical(y_train, 9)
+    y_train = to_categorical(y_train, config['geral']['num_classes'])
 
     print(f"Tempo = {time() - inicio:.2f}s : Rótulos convertidos para categorias")
 
@@ -121,8 +133,12 @@ def otimizar_parametros(TAM_TESTE, TAM_VALIDACAO, FRACAO_BUSCA):
             out = Concatenate(axis=-1)([conv1, conv3, conv5, pool_proj])
             return out
 
-        input_layer = Input(shape=(128, 128, 3))
-
+        input_shape = (
+            config['dados']['tamanho_imagem'],
+            config['dados']['tamanho_imagem'],
+            config['dados']['num_canais']
+        )
+        input_layer = Input(shape=input_shape)
 
         # Convolução: Analisa a imagem com 32 neuronios (filtros)
         # de tamanho 3x3 para fazer uma captura inicial das imagens, 
@@ -131,12 +147,12 @@ def otimizar_parametros(TAM_TESTE, TAM_VALIDACAO, FRACAO_BUSCA):
         # um parâmetro beta, o qual aje como um bias. Logo é possível 
         # desativar o bias aqui para otimizar um pouco o treinamento.    
         x = Conv2D(32, (3,3), strides=(2,2), padding='same', use_bias=False)(input_layer)
-        
+
         # BatchNormalization para padronizar a saída convolucional.
         # Ele calcula a média, desvio padrão e normaliza os dados.
         x = BatchNormalization()(x)
         x = Activation('relu')(x)
-
+        
         # MaxPooling2D reduz a dimensionalidade da imagem ao
         # analisar porçoes 2x2 da imagem e capturar o pixel com
         # maior valor (Max) formando um novo tensor com metade
@@ -166,7 +182,6 @@ def otimizar_parametros(TAM_TESTE, TAM_VALIDACAO, FRACAO_BUSCA):
         # Camada final que transforma os 256 neurônios anteriores
         # em 9, para obter o resultado da época. Utiliza o softmax
         # para trasnformar os resultados em um vetor de probabilidades.
-
         output_layer = Dense(9, activation='softmax')(x)
         
         model = Model(inputs=input_layer, outputs=output_layer)
@@ -183,24 +198,27 @@ def otimizar_parametros(TAM_TESTE, TAM_VALIDACAO, FRACAO_BUSCA):
     parametros = {
         # Parâmetros do método .fit()
         'batch_size': [16, 32, 64],
-        'epochs': [50],  # Aumentamos as épocas, pois o EarlyStopping cuidará do limite
-        'validation_split': [0.2], # Separa 20% dos dados de treino para validação em cada fold
-
+        'epochs': [config['treinamento']['epocas']],
         # Parâmetros da função 'construir_modelo_inception' (prefixo 'model__')
         'model__optimizer': ['adam', 'rmsprop'],
         'model__dense_units': [128, 256, 512],
     }
 
     # Configura a busca aleatória com validação cruzada (cv=3).
-    random_search = RandomizedSearchCV(estimator=model, param_distributions=parametros,
-                                         n_iter=6, cv=2, verbose=2)
+    random_search = RandomizedSearchCV(
+        estimator=model, 
+        param_distributions=parametros,
+        n_iter=config['otimizacao']['n_iter'], 
+        cv=config['otimizacao']['cv_folds'], 
+        verbose=2
+    )
 
     print(f"Tempo = {time() - inicio:.2f}s : Instância do RandomizedSearch criada")
 
     # Cria o callback de Early Stopping
     early_stop = EarlyStopping(
         monitor="val_loss",
-        patience=5,
+        patience=config['treinamento']['callbacks']['early_stopping_patience'],
         verbose=2,
         restore_best_weights=True
     )
@@ -217,20 +235,10 @@ def otimizar_parametros(TAM_TESTE, TAM_VALIDACAO, FRACAO_BUSCA):
 
 def main():
     """
-    Ponto de entrada do script. Define a proporção do dataset a ser usada
-    e chama a função de otimização.
+    Ponto de entrada do script. Os parâmetros são lidos do config.yaml,
+    então a função de otimização é chamada diretamente.
     """
-    # Define a proporção para os conjuntos de teste e validação (ex: 15% cada).
-    # O restante será usado para o treino (ex: 70%).
-    TAM_TESTE = 0.10
-    TAM_VALIDACAO = 0.10
-    
-    # Novo parâmetro: Define a fração do conjunto de treino que será usada para a busca.
-    # Por exemplo, 0.5 usará 50% dos dados de treino para acelerar a otimização.
-    # Para usar todos os dados de treino, defina como 1.0.
-    FRACAO_BUSCA = 0.20
-    
-    otimizar_parametros(TAM_TESTE, TAM_VALIDACAO, FRACAO_BUSCA)
+    otimizar_parametros()
 
 # Bloco padrão para garantir que main() seja executado apenas quando o script for chamado diretamente.
 if __name__ == "__main__":

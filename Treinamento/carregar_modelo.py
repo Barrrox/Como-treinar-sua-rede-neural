@@ -13,45 +13,44 @@ import matplotlib.pyplot as plt
 from matplotlib.widgets import Button # Importar o widget de botão
 import numpy as np
 import random
+from sklearn.metrics import accuracy_score
+import os # Importado para construir os caminhos de forma segura
 
 
-label_para_classe = {
-    0: 'Baroque', 
-    1: 'Cubism', 
-    2: 'Expressionism', 
-    3: 'Impressionism', 
-    4: 'Minimalism', 
-    5: 'Post_Impressionism', 
-    6: 'Realism', 
-    7: 'Romanticism', 
-    8: 'Symbolism'
-    }
+# Carrega as configs/parametros 
+from utilidade import carregar_config
+config = carregar_config()
+
+# O YAML lida bem com chaves numéricas, então a conversão é direta.
+label_para_classe = config['geral']['classes_map']
 
 
-def carregar_modelo(TAM_TESTES):
+def carregar_modelo():
     """
     Carrega um modelo Keras treinado, avalia sua performance com uma matriz de confusão
     e exibe uma janela interativa com a predição de 9 imagens, uma de cada categoria.
-
-    Args:
-        TAM_TESTES (float): A proporção do conjunto de dados a ser usada como
-                            conjunto de teste para a matriz de confusão.
     """
-    # Carrega o modelo pré-treinado a partir do arquivo 'model.keras'.
-    model = load_model('modelo.keras')
+    caminho_modelo = config['modelo']['caminho_melhor_modelo']
+    model = load_model(caminho_modelo)
 
     model.summary()
 
     # --- Etapa 1: Geração da Matriz de Confusão ---
     
+    caminho_imagens = config['dados']['arquivo_imagens_treino']
+    caminho_labels = config['dados']['arquivo_labels_treino']
+    
     # Carrega as imagens e os rótulos do conjunto de dados completo.
-    imagens = np.load("imagens_treino.npy")
-    labels = np.load("labels_treino.npy")
+    imagens = np.load(caminho_imagens)
+    labels = np.load(caminho_labels)
 
     # Separa os dados em um conjunto de treino (para a etapa 2) e um de teste (para a matriz).
     # Este passo é idêntico ao do script de treinamento para garantir consistência.
     x_train, x_test, y_train, y_test = train_test_split(
-        imagens, labels, test_size=TAM_TESTES, random_state=42, stratify=labels
+        imagens, labels, 
+        test_size=config["treinamento"]["tam_testes"], 
+        random_state=config["geral"]["random_seed"], 
+        stratify=labels
     )
     
     # Normaliza os valores dos pixels do conjunto de teste para o intervalo [0, 1].
@@ -60,15 +59,9 @@ def carregar_modelo(TAM_TESTES):
     # Realiza as predições no conjunto de teste.
     y_pred = np.argmax(model.predict(x_test_normalized), axis=1)
 
-    # --- NOVO TRECHO DE CÓDIGO ---
-    # Importa a função de acurácia do scikit-learn
-    from sklearn.metrics import accuracy_score
-
     # Calcula a acurácia comparando os rótulos reais (y_test) com os previstos (y_pred)
     accuracy = accuracy_score(y_test, y_pred)
     print(f"\nAcurácia (calculada manualmente) no conjunto de teste: {accuracy * 100:.2f}%")
-    # --- FIM DO NOVO TRECHO ---
-
 
     # Gera a matriz de confusão.
     conf_matrix = confusion_matrix(y_test, y_pred)
@@ -133,8 +126,17 @@ def carregar_modelo(TAM_TESTES):
             prediction = model.predict(image_for_prediction)
             predicted_class = np.argmax(prediction)
 
-            # Exibe a imagem no subplot correspondente.
-            ax.imshow(image)
+            # --- ALTERAÇÃO INICIA AQUI ---
+            # Verifica o número de canais da configuração para plotar corretamente.
+            if config['dados']['num_canais'] == 1:
+                # Se for 1 canal, exibe em escala de cinza.
+                # np.squeeze remove a dimensão do canal (ex: 224,224,1 -> 224,224)
+                ax.imshow(np.squeeze(image), cmap='gray')
+            else:
+                # Se forem 3 canais, exibe como a imagem colorida padrão.
+                ax.imshow(image)
+            # --- ALTERAÇÃO TERMINA AQUI ---
+            
             ax.set_title(f"Real: {label_para_classe[real_class]}\nPredita: {label_para_classe[predicted_class]}")
             ax.axis('off') # Remove os eixos para uma visualização limpa.
         
@@ -163,10 +165,7 @@ def main():
     """
     Ponto de entrada principal do script.
     """
-    # Define a proporção de imagens a serem usadas para gerar a matriz de confusão.
-    # Inserir a mesma proporção usada nos treinos
-    TAM_TESTES = 0.10
-    carregar_modelo(TAM_TESTES)
+    carregar_modelo()
 
 # Garante que o script só será executado quando chamado diretamente.
 if __name__ == "__main__":

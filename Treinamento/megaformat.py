@@ -11,50 +11,55 @@ Autores: Ellen Brzozoski, João Silva, Lóra, Matheus Barros
 
 import cv2
 import numpy as np
+import random
 from pathlib import Path
 from time import time
+import os  # Importado para construir os caminhos de arquivo de forma segura
 # tqdm é uma biblioteca excelente para criar barras de progresso.
 # Instale com: pip install tqdm
 from tqdm import tqdm
 
-def formatImage(imagemDesf):
-	# definir pontos de incio e fim de um espaço de crop 1:1 centrado
-	height, width, channels = imagemDesf.shape
-	startY = 0
-	startX = 0
-	outScale = 0
-
-	if height > width:
-		outScale = width
-		startX = 0
-
-		cropOffset = int((height - width) * 0.5)
-		startY = cropOffset
-
-	if width > height:
-		outScale = height
-		startY = 0
-
-		cropOffset = int((width - height) * 0.5)
-		startX = cropOffset
+# Carrega as configs/parametros 
+# (Assumindo que utilidade.py está no diretório correto conforme conversamos)
+from utilidade import carregar_config
+config = carregar_config()
 
 
-	# criar imagem de saída
-	outRes = 224
-	output = np.zeros((outRes, outRes, 3), dtype=np.uint8)
-	outimage = np.zeros((outRes, outRes, 1), dtype=np.uint8)
+#
+def formatImageRGB(imagemDesf: np.ndarray) -> np.ndarray:
+    """
+    Realiza um corte quadrado (1:1) aleatório, redimensiona e converte de BGR para RGB
+    usando operações vetorizadas de alta performance do OpenCV.
+    """
+    height, width, _ = imagemDesf.shape
+    startY, startX = 0, 0
+
+    outRes = config['dados']['tamanho_imagem']
+    
+    # 1. Lógica de corte simplificada
+    if height == width:
+        outScale = height
+    elif height > width:
+        outScale = width
+        startY = int((height - width) * random.random())
+    else: # width > height
+        outScale = height
+        startX = int((width - height) * random.random())
+
+    # 2. Corte (crop) vetorizado usando slicing do NumPy (extremamente rápido)
+    imagem_cortada = imagemDesf[startY:startY + outScale, startX:startX + outScale]
+
+    # 3. Redimensionamento (resize) usando a função otimizada do OpenCV
+    imagem_redimensionada = cv2.resize(imagem_cortada, (outRes, outRes))
+    
+    # 4. Inversão de canais BGR para RGB (OpenCV é BGR por padrão) de forma vetorizada
+    #    A operação de slicing do NumPy [..., ::-1] é uma alternativa muito rápida também.
+    output = cv2.cvtColor(imagem_redimensionada, cv2.COLOR_BGR2RGB)
+    
+    return output
 
 
-	for y in range(outRes):
-		for x in range(outRes):
-			output[y, x] = imagemDesf[int((y/outRes)*outScale) + startY, int((x/outRes)*outScale) + startX]		
-			outimage[y, x] = 0.299*output[y, x, 2] + 0.587*output[y, x, 1] + 0.114*output[y, x, 0]
-
-	# FOI!
-	return outimage
-
-
-def formatImage1(imagemDesf: np.ndarray) -> np.ndarray:
+def formatImageBnW(imagemDesf: np.ndarray) -> np.ndarray:
     """
     Realiza crop central, redimensiona e converte a imagem para escala de cinza.
     Esta versão usa funções otimizadas do OpenCV e NumPy.
@@ -71,7 +76,7 @@ def formatImage1(imagemDesf: np.ndarray) -> np.ndarray:
     imagem_cortada = imagemDesf[inicio_y : inicio_y + lado_menor, inicio_x : inicio_x + lado_menor]
 
     # --- 2. Redimensionamento (Lógica idêntica, implementação otimizada) ---
-    outRes = 224
+    outRes = config['dados']['tamanho_imagem']
     # O loop manual original é um redimensionamento por "vizinho mais próximo".
     # A interpolação cv2.INTER_NEAREST replica exatamente essa lógica.
     imagem_redimensionada = cv2.resize(imagem_cortada, (outRes, outRes), interpolation=cv2.INTER_NEAREST)
@@ -131,8 +136,16 @@ def formatDataSet(caminhoParaODataSet):
                 print(f"\nAviso: Não foi possível ler o arquivo {caminho_imagem}, pulando.")
                 continue
 
-            # Chama a função otimizada
-            imagemFormatada = formatImage(imagem)
+            # Chama a função de formatação dependendo do número de canais
+            # 3 = RGB, 1 = escala de cinza
+            
+            num_canais = config["dados"]["num_canais"]
+
+            if num_canais == 1:
+                imagemFormatada = formatImageBnW(imagem)
+            elif num_canais == 3:
+                imagemFormatada = formatImageRGB(imagem)
+            
             
             lista_de_matrizes.append(imagemFormatada)
             
@@ -142,10 +155,13 @@ def formatDataSet(caminhoParaODataSet):
         except Exception as e:
             print(f"\nErro ao processar o arquivo {caminho_imagem}: {e}")
     
-    # Salva os arquivos .npy com os mesmos nomes
+
+    caminho_saida_imagens = config['dados']['arquivo_imagens_treino']
+    caminho_saida_labels = config['dados']['arquivo_labels_treino']
+    
     print("Salvando arquivos .npy...")
-    np.save('imagens_treino_BnW.npy', lista_de_matrizes)
-    np.save('labels_treino_BnW.npy', lista_de_classes)
+    np.save(caminho_saida_imagens, lista_de_matrizes)
+    np.save(caminho_saida_labels, lista_de_classes)
     print("Arquivos salvos com sucesso.")
 
     return lista_de_matrizes, lista_de_classes
@@ -153,5 +169,8 @@ def formatDataSet(caminhoParaODataSet):
 # --- Execução do Script ---
 if __name__ == "__main__":
     inicio = time()
-    formatDataSet("./BaseDeDados")
+    
+    
+    formatDataSet(config["dados"]["caminho_base_de_dados"])
+    
     print(f"Tempo de execução: {time() - inicio:.2f} segundos")
