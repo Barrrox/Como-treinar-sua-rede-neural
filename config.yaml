@@ -16,10 +16,10 @@ geral:
 
 dados:
   # Os nomes aqui estão com "../" pois /Dados está um nível acima que os arquivos de treinamento
-  nome_pasta_dados: "../Dados"
-  caminho_base_de_dados: "../Dados/BaseDeDados10" # Pasta com as imagens originais
-  arquivo_imagens_treino: "../Dados/imagens_treino_10_RGB.npy"
-  arquivo_labels_treino: "../Dados/labels_treino_10_RGB.npy"
+  nome_pasta_dados: "Dados"
+  caminho_base_de_dados: "Dados/BaseDeDados10" # Pasta com as imagens originais
+  arquivo_imagens_treino: "Dados/imagens_treino_10_RGB.npy"
+  arquivo_labels_treino: "Dados/labels_treino_10_RGB.npy"
   tamanho_imagem: 224
   num_canais: 3
 

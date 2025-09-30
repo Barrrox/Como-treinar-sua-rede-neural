@@ -58,14 +58,14 @@ Para evitar problemas, realize todos os 4 procedimentos de treinamento (formata�
 
 ### 3. Execução do Pipeline
 
-Os scripts devem ser executados a partir da **pasta raiz do projeto** (`Como treinar sua rede neural/`), utilizando a flag `-m` do Python para que as importações funcionem corretamente.
+Os scripts devem ser executados a partir da **pasta raiz do projeto** , utilizando a flag `-m` do Python para que as importações funcionem corretamente.
 
 #### Passo 1: Pré-processamento dos Dados
 
-Este script lê as imagens da pasta definida em `caminho_base_de_dados`, as processa (crop, resize) e as salva nos arquivos `.npy` definidos em `arquivo_imagens_treino` e `arquivo_labels_treino`.
+Este script lê as imagens da pasta definida em `caminho_base_de_dados`, as processa (crop, resize) e as salva nos arquivos `.npy` definidos em `arquivo_imagens_treino` e `arquivo_labels_treino`. **Lembre-se** de escolher o tamanho do resize e o número de canais no arquivo de configuração.
 
 ```bash
-python -m Treinamento.megaformat
+python ./Treinamento/megaformat.py
 ```
 
 #### Passo 2: Treinamento do Modelo
@@ -73,25 +73,25 @@ python -m Treinamento.megaformat
 Após o pré-processamento, este script carrega os arquivos `.npy`, monta o modelo e inicia o treinamento com os parâmetros definidos em `config.yaml`.
 
 ```bash
-python -m Treinamento.treinamento_inception
+python ./Treinamento/treinamento_inception.py
 ```
 
-O modelo com o melhor desempenho será salvo no caminho especificado por `caminho_melhor_modelo`.
+O modelo com o melhor desempenho será salvo no caminho especificado por `caminho_melhor_modelo` nas configurações.
 
-### (Opcional) Otimização de Hiperparâmetros
+### 3. Otimização de Hiperparâmetros
 
 Se desejar encontrar uma combinação otimizada de parâmetros (como `batch_size`, `optimizer`, etc.), você pode executar o script de otimização. Ele usará as configurações da seção `otimizacao` do `config.yaml`.
 
 ```bash
-python -m Treinamento.otimizacao_parametros_inception
+python ./Treinamento/otimizacao_parametros_inception.py
 ```
 > **Atenção:** Este processo pode ser muito demorado.
 
-### (Opcional) Avaliação de um Modelo Salvo
+### 4. Avaliação de um Modelo Salvo
 
-Para carregar um modelo já treinado e visualizar sua matriz de confusão e predições interativas, execute o seguinte comando:
+Para carregar um modelo já treinado e visualizar sua matriz de confusão e predições, execute o seguinte comando:
 
 ```bash
-python -m Treinamento.carregar_modelo
+python ./Treinamento/carregar_modelo.py
 ```
 > Certifique-se de que o parâmetro `caminho_melhor_modelo` no `config.yaml` aponta para o arquivo `.keras` que você deseja carregar.
